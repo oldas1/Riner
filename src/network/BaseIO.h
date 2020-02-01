@@ -11,6 +11,7 @@
 #include <src/util/Copy.h>
 #include <src/util/LockUtils.h>
 #include <list>
+#include "Socket.h"
 
 namespace miner {
 
@@ -45,6 +46,8 @@ namespace miner {
 
         DELETE_COPY_AND_MOVE(BaseIO); //because Connection<T> is referencing BaseIO::_onRecv
 
+        void enableSsl(const SslDesc &);
+
         //launch as server or client, once launched cannot be changed for an instance
         void launchServer(uint16_t listenOnPort, IOOnConnectedFunc &&, IOOnDisconnectedFunc && = ioOnDisconnectedNoop);
         void launchClient(std::string host, uint16_t port, IOOnConnectedFunc &&, IOOnDisconnectedFunc && = ioOnDisconnectedNoop);
@@ -71,9 +74,10 @@ namespace miner {
         bool ioThreadRunning() const; //not thread safe
 
     private:
-        void createCxnWithSocket();
+        void createCxnWithSocket(unique_ptr<Socket>);
         void serverListen();
         void clientIterateEndpoints(const asio::error_code &error, asio::ip::tcp::resolver::iterator it);
+        void handshakeHandler(const asio::error_code &error, unique_ptr<Socket>); //takes ownership of socket already
 
         IOMode _mode;
 
@@ -99,7 +103,12 @@ namespace miner {
         IOOnDisconnectedFunc _onDisconnected = ioOnDisconnectedNoop;
 
         asio::io_service _ioService; //must be declared after _onDisconnected since stop() may call _onDisconnected()
-        tcp::socket _socket; //depends on _ioService. gets moved into new connections as they are constructed
+
+        //socket depends on _ioService. gets moved into new connections as they are constructed
+        //can be a plain old tcp::socket or a ssl stream around a tcp::socket
+        optional<SslDesc> _sslDesc;
+        unique_ptr<Socket> _socket;
+
         unique_ptr<tcp::acceptor> _acceptor; //for server
         unique_ptr<tcp::resolver> _resolver; //for client
 
@@ -110,6 +119,9 @@ namespace miner {
 
         unique_ptr<std::thread> _thread;
 
+        void prepareSocket(bool isClient);
+
+        bool sslEnabledButNotSupported();
     };
 
 }
