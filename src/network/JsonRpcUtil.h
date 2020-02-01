@@ -33,13 +33,14 @@ namespace miner { namespace jrpc {
             using Base::retryAsyncEvery;
             using Base::postAsync;
             using Base::readAsync;
+            using Base::disconnectAll;
             //don't expose writeAsync, use callAsync instead
 
             JsonRpcIO &io() {//if you really want access you can have it
                 return *this;
             }
 
-            ~JsonRpcUtil() {
+            ~JsonRpcUtil() override {
                 stopIOThread();
             }
 

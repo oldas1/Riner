@@ -4,7 +4,7 @@
 #include "Pool.h"
 #include <future>
 #include <list>
-#include <src/application/Config.h>
+#include <src/config/Config.h>
 
 namespace miner {
 
@@ -43,6 +43,8 @@ namespace miner {
         unique_ptr <Work> tryGetWorkImpl() override;
 
         void submitSolutionImpl(unique_ptr<WorkSolution>) override;
+
+        void onDeclaredDead() override {};//poolswitcher should no longer subclass Pool
 
         size_t poolCount() const;
 

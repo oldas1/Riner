@@ -1,7 +1,7 @@
 #pragma once
 
 #include <src/compute/DeviceId.h>
-#include <src/application/Config.h>
+#include <src/config/Config.h>
 #include <src/util/Copy.h>
 #include <functional>
 #include <list>
@@ -17,8 +17,6 @@ namespace miner {
         }
 
     public:
-        using GpuSettings = Config::DeviceProfile::GpuSettings;
-
         struct CtorArgs {
             DeviceId id;
             GpuSettings settings;

@@ -50,24 +50,39 @@ namespace miner {
             auto pool = pools[i];
 
             auto lastKnownAliveTime = pool->getLastKnownAliveTime();
+            auto latestDeclaredDeadTime = pool->getLatestDeclaredDeadTime();
 
-            if (i <= activePoolIndex) {
-                bool dead = now - lastKnownAliveTime > durUntilDeclaredDead;
-                if (dead) {
-                    if (i == activePoolIndex) {
-                        ++activePoolIndex;
+            //make some descriptive bools
+            bool isDead = now - lastKnownAliveTime > durUntilDeclaredDead;
+            bool wasAlreadyDead = latestDeclaredDeadTime > lastKnownAliveTime; //pool was dead last time we checked
+            bool justDied = isDead && !wasAlreadyDead;
+            bool isAlive = !isDead;
 
-                        LOG(INFO) << "Pool #" << i << " is inactive, trying next backup pool";
-                    }
+            if (justDied) {//the pool died between now and the last time we checked
+                pool->declareDead();
+
+                if (i == activePoolIndex) {
+                    ++activePoolIndex; //next pool is now the active pool
+                    LOG(INFO) << "actively used pool #" << i << " turned inactive, switching to next backup pool";
                 }
                 else {
-                    //if alive, but different pool => assign as new active pool
-                    if (activePoolIndex != i) {
-                        activePoolIndex = i;
+                    LOG(INFO) << "currently unused backup pool #" << i << " turned inactive";
+                }
+            }
+            else if (wasAlreadyDead) {//the pool was already dead last time we checked and is still dead
+                if (now - latestDeclaredDeadTime > durUntilDeclaredDead) {
+                    //if the declared dead time interval has passed again since the last time we declared it dead
+                    //redeclare the pool dead, so it can try again to reconnect
+                    pool->declareDead();
+                }
+            }
+            else if (isAlive) {//the pool is alive (and may have just turned alive)
 
-                        const auto &name = pool->getName();
-                        LOG(INFO) << "Pool #" << i << " (" << name << ") chosen as new active pool";
-                    }
+                //if i is alive and a lower priority pool is active => assign i to be the new active pool
+                if (activePoolIndex > i) {
+                    activePoolIndex = i;
+                    const auto &name = pool->getName();
+                    LOG(INFO) << "Pool #" << i << " (" << name << ") chosen as new active pool";
                 }
             }
         }
@@ -100,7 +115,7 @@ namespace miner {
     }
 
     void PoolSwitcher::submitSolutionImpl(unique_ptr<WorkSolution> solution) {
-        std::shared_ptr<const PoolJob> job = solution->getJob();
+        std::shared_ptr<const PoolJob> job = solution->tryGetJob();
         if (!job) {
             LOG(INFO) << "work solution is not submitted because its job is stale";
             return;
